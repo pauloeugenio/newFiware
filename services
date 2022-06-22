@@ -1,0 +1,78 @@
+#!/bin/bash
+#
+#  Command Line Interface to start all services associated with the Tutorial
+#
+#  For this tutorial the commands are merely a convenience script to run docker or docker-compose
+#
+#  Each services script can be run using either docker-compose (the external tool with the hyphen -) 
+#  or docker compose (the newer version directly bundled with Docker with a space )
+#
+#  if you start up with the following command:
+#
+#  ./services start legacy
+#
+# This will force the script to use docker-compose which may be more reliable in 
+# some cases (or if an older version of Docker is being used)
+
+set -e
+
+dockerCmd="docker compose"
+if (( $# == 2 )); then
+    dockerCmd="docker-compose"
+fi
+
+if (( $# < 1 )); then
+    echo "Illegal number of parameters"
+    echo "usage: services [create|start|stop]"
+    exit 1
+fi
+
+
+stoppingContainers () {
+	export $(cat .env | grep "#" -v)
+	echo "Stopping running containers"
+	${dockerCmd} -f docker-compose/multiple.yml down -v --remove-orphans
+
+	echo "Removing HDFS files"
+	for dir in ./docker-compose/data/*; do
+		[ "$dir" = "./docker-compose/data" ] && continue
+		rm -rf "$dir"
+	done
+}
+
+command="$1"
+case "${command}" in
+	"help")
+		echo "usage: services [create|start|stop]"
+		;;
+	"stop")
+		stoppingContainers
+		;;
+	"start")
+		stoppingContainers
+		echo -e "Starting containers: \033[1;34mOrion\033[0m, \033[1;34mCygnus\033[0m, \033[1;36mIoT-Agent\033[0m, \033[1mTutorial\033[0m and \033[1mMongoDB\033[0m, \033[1mPostgreSQL\033[0m and \033[1mMySQL\033[0m databases."
+		echo -e "- \033[1;34mOrion\033[0m is the context broker"
+		echo -e "- \033[1;34mCygnus\033[0m is configured to write context data to Mongo-DB, PostgeSQL and MySQL"
+		echo -e "- \033[1;36mIoT-Agent\033[0m is configured for the UltraLight Protocol"
+		echo -e "- \033[1mTutorial\033[0m acts as a series of dummy IoT Sensors over HTTP"
+		echo ""
+		${dockerCmd} -f docker-compose/multiple.yml up -d --remove-orphans
+		waitForMongo
+		addDatabaseIndex
+		waitForOrion
+		loadData
+		displayServices
+		echo -e "Now open \033[4mhttp://localhost:$TUTORIAL_APP_PORT/device/monitor\033[0m"
+		;;
+	"create")
+		export $(cat .env | grep "#" -v)
+		echo "Pulling Docker images"
+		docker pull curlimages/curl
+		${dockerCmd} -f docker-compose/multiple.yml  pull
+		;;
+	*)
+		echo "Command not Found."
+		echo "usage: services [create|multiple|stop]"
+		exit 127;
+		;;
+esac
