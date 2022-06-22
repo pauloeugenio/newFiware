@@ -21,17 +21,17 @@ services:
 
   #mosquitto
   mosquitto:
-    image: eclipse-mosquitto:1.5.6
+    image: eclipse-mosquitto:latest
     hostname: mosquitto
     container_name: mosquitto
     expose:
-      - "1883"
-      - "9001"
+      - 1883
+      - 9001
     ports:
-      - "1883:1883"
-      - "9001:9001"
+      - 1883:1883
+      - 9001:9001
     volumes:
-      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
     networks:
       - default
     restart: always
@@ -164,6 +164,21 @@ services:
       - "MYSQL_ROOT_HOST=%"
     volumes:
       - mysql-db:/var/lib/mysql
+      
+  portainer:
+    image: portainer/portainer
+    hostname: portainer
+    container_name: portainer
+    networks:
+      - default
+    expose:
+      - 9000
+    ports:
+      - 572:9000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data/portainer/portainer
+    restart: always
 
 networks:
   default:
@@ -176,3 +191,4 @@ networks:
 volumes:
   mongo-db: ~
   mysql-db: ~
+  portainer_data: ~
