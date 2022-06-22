@@ -52,23 +52,15 @@ services:
     expose:
       - ${CYGNUS_MONGO_SERVICE_PORT} 
       - ${CYGNUS_MYSQL_SERVICE_PORT} 
-      - ${CYGNUS_POSTGRESQL_SERVICE_PORT}
       - ${CYGNUS_API_PORT}
     ports:
       - ${CYGNUS_MONGO_SERVICE_PORT}:${CYGNUS_MONGO_SERVICE_PORT} # localhost:5051
-      - ${CYGNUS_POSTGRESQL_SERVICE_PORT}:${CYGNUS_POSTGRESQL_SERVICE_PORT}
       - ${CYGNUS_MYSQL_SERVICE_PORT}:${CYGNUS_MYSQL_SERVICE_PORT} # localhost:5050
       - ${CYGNUS_API_PORT}:${CYGNUS_API_PORT} # localhost:5080
     environment:
       - "CYGNUS_MULTIAGENT=true" # Whether to persist data into multiple databases.
       - "CYGNUS_MONGO_SERVICE_PORT=${CYGNUS_MONGO_SERVICE_PORT}"
       - "CYGNUS_MONGO_HOSTS=mongo-db:${MONGO_DB_PORT}" # Comma separated list of Mongo-DB servers which Cygnus will contact to persist historical context data
-      - "CYGNUS_POSTGRESQL_SERVICE_PORT=${CYGNUS_POSTGRESQL_SERVICE_PORT}"
-      - "CYGNUS_POSTGRESQL_HOST=postgres-db" # Hostname of the PostgreSQL server used to persist historical context data
-      - "CYGNUS_POSTGRESQL_PORT=${POSTGRES_DB_PORT}" # Port that the PostgreSQL server uses to listen to commands
-      - "CYGNUS_POSTGRESQL_USER=postgres" # Username for the PostgreSQL database user
-      - "CYGNUS_POSTGRESQL_PASS=password" # Password for the PostgreSQL database user
-      - "CYGNUS_POSTGRESQL_ENABLE_CACHE=true" # Switch to enable caching within the PostgreSQL configuration
       - "CYGNUS_MYSQL_SERVICE_PORT=${CYGNUS_MYSQL_SERVICE_PORT}"
       - "CYGNUS_MYSQL_HOST=mysql-db" # Hostname of the MySQL server used to persist historical context data
       - "CYGNUS_MYSQL_PORT=${MYSQL_DB_PORT}" # Port that the MySQL server uses to listen to commands
@@ -112,42 +104,6 @@ services:
       interval: 5s
 
   
-  # Tutorial acts as a series of dummy IoT Sensors over HTTP
-  tutorial:
-    labels:
-      org.fiware: 'tutorial'
-    image: fiware/tutorials.context-provider
-    hostname: iot-sensors
-    container_name: fiware-tutorial
-    depends_on:
-      - orion
-      - iot-agent
-    networks:
-      default:
-        aliases:
-          - tutorial
-          - context-provider
-    expose:
-      - ${TUTORIAL_APP_PORT} # localhost:3000
-      - ${TUTORIAL_DUMMY_DEVICE_PORT} # localhost:3001
-    ports:
-      - ${TUTORIAL_APP_PORT}:${TUTORIAL_APP_PORT} # localhost:3000
-      - ${TUTORIAL_DUMMY_DEVICE_PORT}:${TUTORIAL_DUMMY_DEVICE_PORT} # localhost:3001
-    environment:
-      - "MONGO_URL=mongodb://mongo-db:27017"
-      - "DEBUG=tutorial:*"
-      - "WEB_APP_PORT=${TUTORIAL_APP_PORT}" # Port used by the content provider proxy and web-app for viewing data
-      - "IOTA_HTTP_HOST=iot-agent"
-      - "IOTA_HTTP_PORT=${IOTA_SOUTH_PORT}"
-      - "IOTA_DEFAULT_RESOURCE=/iot/d"
-      - "DUMMY_DEVICES_PORT=${TUTORIAL_DUMMY_DEVICE_PORT}" # Port used by the dummy IOT devices to receive commands
-      - "DUMMY_DEVICES_TRANSPORT=HTTP" # Default transport used by dummy IoT devices
-      - "CONTEXT_BROKER=http://orion:${ORION_PORT}/v2" # URL of the context broker to update context
-      - "NGSI_LD_PREFIX="
-      - "OPENWEATHERMAP_KEY_ID=<ADD_YOUR_KEY_ID>"
-      - "TWITTER_CONSUMER_KEY=<ADD_YOUR_CONSUMER_KEY>"
-      - "TWITTER_CONSUMER_SECRET=<ADD_YOUR_CONSUMER_SECRET>"
-
 
 
   # Databases
@@ -191,51 +147,6 @@ services:
     volumes:
       - mysql-db:/var/lib/mysql
 
-  postgres-db:
-    labels:
-      org.fiware: 'tutorial'
-    image: postgres
-    hostname: postgres-db
-    container_name: db-postgres
-    expose:
-      - ${POSTGRES_DB_PORT}
-    ports:
-      - ${POSTGRES_DB_PORT}:${POSTGRES_DB_PORT}
-    networks:
-      - default
-    environment:
-      - "POSTGRES_PASSWORD=password"
-      - "POSTGRES_USER=postgres"
-      - "POSTGRES_DB=postgres"
-    volumes:
-      - postgres-db:/var/lib/postgresql/data
-
-  elasticsearch-db:
-    labels:
-      org.fiware: 'tutorial'
-    image: elasticsearch:${ELASTICSEARCH_VERSION}
-    hostname: elasticsearch
-    container_name: db-elasticsearch
-    expose:
-      - "${MONGO_DB_PORT}"
-    ports:
-      - "${ELASTICSEARCH_PORT}:${ELASTICSEARCH_PORT}"
-    networks:
-      - default
-    volumes:
-      - es-db:/usr/share/elasticsearch/data
-    environment:
-      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
-      ELASTIC_PASSWORD: changeme
-      # Use single node discovery in order to disable production mode and avoid bootstrap checks.
-      # see: https://www.elastic.co/guide/en/elasticsearch/reference/current/bootstrap-checks.html
-      discovery.type: single-node
-    healthcheck:
-      test: curl http://localhost:${ELASTICSEARCH_PORT} >/dev/null; if [[ $$? == 52 ]]; then echo 0; else echo 1; fi
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
 networks:
   default:
     labels:
@@ -246,6 +157,4 @@ networks:
 
 volumes:
   mongo-db: ~
-  postgres-db: ~
   mysql-db: ~
-  es-db: ~
