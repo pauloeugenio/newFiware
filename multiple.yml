@@ -21,7 +21,7 @@ services:
 
   #mosquitto
   mosquitto:
-    image: eclipse-mosquitto:latest
+    image: eclipse-mosquitto
     hostname: mosquitto
     container_name: mosquitto
     expose:
@@ -31,18 +31,13 @@ services:
       - 1883:1883
       - 9001:9001
     volumes:
-      - mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
     networks:
       - default
     restart: always
 
-
-
-
-  # Orion is the context broker
+  # Orion
   orion:
-    labels:
-      org.fiware: 'tutorial'
     image: fiware/orion:${ORION_VERSION}
     hostname: orion
     container_name: fiware-orion
@@ -59,8 +54,6 @@ services:
 
   # Cygnus is configured to write context data to Mongo-DB, PostgeSQL and MySQL
   cygnus:
-    labels:
-      org.fiware: 'tutorial'
     image: fiware/cygnus-ngsi:${CYGNUS_VERSION}
     hostname: cygnus
     container_name: fiware-cygnus
@@ -94,8 +87,6 @@ services:
   
   # IoT-Agent is configured for the UltraLight Protocol
   iot-agent:
-    labels:
-      org.fiware: 'tutorial'
     image: fiware/iotagent-ul:${ULTRALIGHT_VERSION}
     hostname: iot-agent
     container_name: fiware-iot-agent
@@ -103,6 +94,9 @@ services:
       - mongo-db
     networks:
       - default
+    expose:
+      - ${IOTA_NORTH_PORT}
+      - ${IOTA_SOUTH_PORT}
     ports:
       - ${IOTA_NORTH_PORT}:${IOTA_NORTH_PORT} # localhost:4041
       - ${IOTA_SOUTH_PORT}:${IOTA_SOUTH_PORT} # localhost:7896
@@ -126,8 +120,6 @@ services:
   
   # Databases
   mongo-db:
-    labels:
-      org.fiware: 'tutorial'
     image: mongo:${MONGO_DB_VERSION}
     hostname: mongo-db
     container_name: db-mongo
@@ -148,8 +140,6 @@ services:
 
   mysql-db:
     restart: always
-    labels:
-      org.fiware: 'tutorial'
     image: mysql:${MYSQL_DB_VERSION}
     hostname: mysql-db
     container_name: db-mysql
