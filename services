@@ -57,12 +57,6 @@ case "${command}" in
 		echo -e "- \033[1mTutorial\033[0m acts as a series of dummy IoT Sensors over HTTP"
 		echo ""
 		${dockerCmd} -f docker-compose/multiple.yml up -d --remove-orphans
-		waitForMongo
-		addDatabaseIndex
-		waitForOrion
-		loadData
-		displayServices
-		echo -e "Now open \033[4mhttp://localhost:$TUTORIAL_APP_PORT/device/monitor\033[0m"
 		;;
 	"create")
 		export $(cat .env | grep "#" -v)
