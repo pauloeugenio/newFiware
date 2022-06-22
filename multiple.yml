@@ -18,6 +18,27 @@
 #
 version: "3.8"
 services:
+
+  #mosquitto
+  mosquitto:
+    image: eclipse-mosquitto:1.5.6
+    hostname: mosquitto
+    container_name: mosquitto
+    expose:
+      - "1883"
+      - "9001"
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - default
+    restart: always
+
+
+
+
   # Orion is the context broker
   orion:
     labels:
@@ -46,7 +67,6 @@ services:
     depends_on:
       - mysql-db
       - mongo-db
-      - postgres-db
     networks:
       - default
     expose:
@@ -93,8 +113,8 @@ services:
       - IOTA_REGISTRY_TYPE=mongodb #Whether to hold IoT device info in memory or in a database
       - IOTA_LOG_LEVEL=DEBUG # The log level of the IoT Agent
       - IOTA_TIMESTAMP=true # Supply timestamp information with each measurement
-      - IOTA_CB_NGSI_VERSION=v2 # use NGSIv2 when sending updates for active attributes
-      - IOTA_AUTOCAST=true # Ensure Ultralight number values are read as numbers not strings
+      - IOTA_MQTT_HOST=mosquitto" # The host name of the MQTT Broker
+      - IOTA_MQTT_PORT=1883" # The port the MQTT Broker is listening on to receive topics 
       - IOTA_MONGO_HOST=mongo-db # The host name of MongoDB
       - IOTA_MONGO_PORT=${MONGO_DB_PORT} # The port mongoDB is listening on
       - IOTA_MONGO_DB=iotagentul # The name of the database used in mongoDB
@@ -104,8 +124,6 @@ services:
       interval: 5s
 
   
-
-
   # Databases
   mongo-db:
     labels:
