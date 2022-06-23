@@ -3,7 +3,7 @@ services:
 
   #mosquitto
   mosquitto:
-    image: eclipse-mosquitto
+    image: eclipse-mosquitto:latest
     hostname: mosquitto
     container_name: mosquitto
     expose:
