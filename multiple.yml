@@ -1,23 +1,6 @@
 version: "3.8"
 services:
 
-  #mosquitto
-  mosquitto:
-    image: eclipse-mosquitto:latest
-    hostname: mosquitto
-    container_name: mosquitto
-    expose:
-      - 1883
-      - 9001
-    ports:
-      - 1883:1883
-      - 9001:9001
-    volumes:
-      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
-    networks:
-      - default
-    restart: always
-
   # Orion
   orion:
     image: fiware/orion:${ORION_VERSION}
@@ -27,41 +10,49 @@ services:
       - mongo-db
     networks:
       - default
+    expose:
+      - "${ORION_PORT}"
     ports:
       - "${ORION_PORT}:${ORION_PORT}" # localhost:1026
-    command: -dbhost mongo-db -logLevel DEBUG -noCache
+    command: -dbhost mongo-db -logLevel DEBUG
+    healthcheck:
+      test: curl --fail -s http://orion:${ORION_PORT}/version || exit 1
+      interval: 5s
     restart: always
+
 
   # Cygnus is configured to write context data to Mongo-DB, PostgeSQL and MySQL
   cygnus:
     image: fiware/cygnus-ngsi:${CYGNUS_VERSION}
     hostname: cygnus
     container_name: fiware-cygnus
-    depends_on:
-      - mysql-db
-      - mongo-db
     networks:
       - default
+    depends_on:
+      - mongo-db
+      - mysql-db  
     expose:
-      - ${CYGNUS_MONGO_SERVICE_PORT} 
-      - ${CYGNUS_MYSQL_SERVICE_PORT} 
-      - ${CYGNUS_API_PORT}
+    # - ${CYGNUS_MONGO_SERVICE_PORT} 
+    # - ${CYGNUS_MYSQL_SERVICE_PORT} 
+      - ${CYGNUS_API_PORT} #5080
+      - ${CYGNUS_API_ADMIN_PORT} #5081
     ports:
-      - ${CYGNUS_MONGO_SERVICE_PORT}:${CYGNUS_MONGO_SERVICE_PORT} # localhost:5051
       - ${CYGNUS_MYSQL_SERVICE_PORT}:${CYGNUS_MYSQL_SERVICE_PORT} # localhost:5050
+      - ${CYGNUS_MONGO_SERVICE_PORT}:${CYGNUS_MONGO_SERVICE_PORT} # localhost:5051
       - ${CYGNUS_API_PORT}:${CYGNUS_API_PORT} # localhost:5080
+      - ${CYGNUS_API_ADMIN_PORT}:${CYGNUS_API_ADMIN_PORT} # localhost:5081
     environment:
       - "CYGNUS_MULTIAGENT=true" # Whether to persist data into multiple databases.
-      - "CYGNUS_MONGO_SERVICE_PORT=${CYGNUS_MONGO_SERVICE_PORT}"
-      - "CYGNUS_MONGO_HOSTS=mongo-db:${MONGO_DB_PORT}" # Comma separated list of Mongo-DB servers which Cygnus will contact to persist historical context data
-      - "CYGNUS_MYSQL_SERVICE_PORT=${CYGNUS_MYSQL_SERVICE_PORT}"
-      - "CYGNUS_MYSQL_HOST=mysql-db" # Hostname of the MySQL server used to persist historical context data
+      - "CYGNUS_MYSQL_HOST=mysql-db" # Hostname of the MySQL server used to persist historical context data 
       - "CYGNUS_MYSQL_PORT=${MYSQL_DB_PORT}" # Port that the MySQL server uses to listen to commands
-      - "CYGNUS_MYSQL_USER=root" # Username for the MySQL database user
-      - "CYGNUS_MYSQL_PASS=123" # Password for the MySQL database user
-      - "CYGNUS_SERVICE_PORT=${CYGNUS_MYSQL_SERVICE_PORT}"
+      - "CYGNUS_MYSQL_USER=${CYGNUS_MYSQL_USER}" # Username for the MySQL database user
+      - "CYGNUS_MYSQL_PASS=${CYGNUS_MYSQL_PASS}" # Password for the MySQL database user
+      - "CYGNUS_MYSQL_SERVICE_PORT=${CYGNUS_MYSQL_SERVICE_PORT}"
+      - "CYGNUS_SERVICE_PORT=${CYGNUS_MYSQL_SERVICE_PORT}" # Notification Port that Cygnus listens when subcribing to context data changes
       - "CYGNUS_API_PORT=${CYGNUS_API_PORT}" # Port that Cygnus listens on for operational reasons
-      - "CYGNUS_LOG_LEVEL=DEBUG" #The logging level for Cygnus
+      - "CYGNUS_LOG_LEVEL=DEBUG" # The logging level for Cygnus
+      - "CYGNUS_MONGO_SERVICE_PORT=${CYGNUS_MONGO_SERVICE_PORT}"
+      - "CYGNUS_MONGO_HOSTS=mongo-db:${MONGO_DB_PORT}" # Comma separated list of Mongo-DB servers which Cygnus will contact to persist historical context data   
     restart: always
   
   # IoT-Agent is configured for the UltraLight Protocol
@@ -71,14 +62,15 @@ services:
     container_name: fiware-iot-agent
     depends_on:
       - mongo-db
+      - mosquitto
     networks:
       - default
     expose:
       - ${IOTA_NORTH_PORT}
-      - ${IOTA_SOUTH_PORT}
+    # - ${IOTA_SOUTH_PORT}
     ports:
       - ${IOTA_NORTH_PORT}:${IOTA_NORTH_PORT} # localhost:4041
-      - ${IOTA_SOUTH_PORT}:${IOTA_SOUTH_PORT} # localhost:7896
+    # - ${IOTA_SOUTH_PORT}:${IOTA_SOUTH_PORT} # localhost:7896
     environment:
       - IOTA_CB_HOST=orion # name of the context broker to update context
       - IOTA_CB_PORT=${ORION_PORT} # port the context broker listens on to update context
@@ -86,13 +78,19 @@ services:
       - IOTA_REGISTRY_TYPE=mongodb #Whether to hold IoT device info in memory or in a database
       - IOTA_LOG_LEVEL=DEBUG # The log level of the IoT Agent
       - IOTA_TIMESTAMP=true # Supply timestamp information with each measurement
-      - IOTA_MQTT_HOST=mosquitto" # The host name of the MQTT Broker
-      - IOTA_MQTT_PORT=1883" # The port the MQTT Broker is listening on to receive topics 
+      - IOTA_CB_NGSI_VERSION=v2 # use NGSIv2 when sending updates for active attributes
+      - IOTA_AUTOCAST=true # Ensure Ultralight number values are read as numbers not strings
       - IOTA_MONGO_HOST=mongo-db # The host name of MongoDB
       - IOTA_MONGO_PORT=${MONGO_DB_PORT} # The port mongoDB is listening on
       - IOTA_MONGO_DB=iotagentul # The name of the database used in mongoDB
-      - IOTA_HTTP_PORT=${IOTA_SOUTH_PORT} # The port used for device traffic over HTTP
+      - IOTA_MQTT_HOST=mosquitto # The host name of the MQTT Broker
+      - IOTA_MQTT_PORT=${MOSQUITTO_NORTH_PORT} # The port the MQTT Broker is listening on to receive topics
+      - IOTA_DEFAULT_RESOURCE= # Default is blank. I'm using MQTT so I don't need a resource
       - IOTA_PROVIDER_URL=http://iot-agent:${IOTA_NORTH_PORT}
+      - IOTA_DEFAULT_TRANSPORT=MQTT
+   #  - IOTA_HTTP_PORT=${IOTA_SOUTH_PORT} # The port used for device traffic over HTTP
+    healthcheck:
+      interval: 5s
     restart: always
 
   
@@ -109,6 +107,11 @@ services:
       - default
     volumes:
       - mongo-db:/data
+    healthcheck:
+      test: |
+        host=`hostname --ip-address || echo '127.0.0.1'`; 
+        mongo --quiet $host/test --eval 'quit(db.runCommand({ ping: 1 }).ok ? 0 : 2)' && echo 0 || echo 1
+      interval: 5s
     restart: always
     
 
@@ -123,11 +126,30 @@ services:
     networks:
       - default
     environment:
-      - "MYSQL_ROOT_PASSWORD=123"
+      - "MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}"
       - "MYSQL_ROOT_HOST=%"
     volumes:
       - mysql-db:/var/lib/mysql
     restart: always
+
+
+    #mosquitto
+  mosquitto:
+    image: eclipse-mosquitto:${MOSQUITTO_VERSION}
+    hostname: mosquitto
+    container_name: mosquitto
+    expose:
+      - ${MOSQUITTO_NORTH_PORT}
+      - ${MOSQUITTO_SOUTH_PORT}
+    ports:
+      - ${MOSQUITTO_NORTH_PORT}:${MOSQUITTO_NORTH_PORT}
+      - ${MOSQUITTO_SOUTH_PORT}:${MOSQUITTO_SOUTH_PORT}
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - default
+    restart: always
+
       
   portainer:
     image: portainer/portainer
@@ -136,9 +158,9 @@ services:
     networks:
       - default
     expose:
-      - 9000
+      - ${PORTAINER_NORTH_PORT}
     ports:
-      - 572:9000
+      - ${PORTAINER_SOUTH_PORT}:${PORTAINER_NORTH_PORT}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data/portainer/portainer
@@ -153,6 +175,6 @@ networks:
         - subnet: 172.18.1.0/24
 
 volumes:
-  mongo-db: ~
-  mysql-db: ~
-  portainer_data: ~
+  mongo-db:
+  mysql-db:
+  portainer_data:
